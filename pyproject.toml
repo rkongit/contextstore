@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "contextstore"
+version = "0.1.0"
+description = "A generic package for persisting conversation history across different storage backends"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+keywords = ["conversation", "history", "memory", "persistence", "chat", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/contextstore"
+Documentation = "https://github.com/yourusername/contextstore#readme"
+Repository = "https://github.com/yourusername/contextstore"
+Issues = "https://github.com/yourusername/contextstore/issues"
+
+[tool.setuptools]
+packages = ["contextstore"]
+
+[tool.setuptools.package-data]
+contextstore = ["py.typed"]
+
