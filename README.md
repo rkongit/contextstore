@@ -16,13 +16,6 @@ A generic Python package for persisting conversation history across different st
 pip install contextstore
 ```
 
-Or install from source:
-
-```bash
-git clone https://github.com/yourusername/contextstore.git
-cd contextstore
-pip install .
-```
 
 ## Quick Start
 
