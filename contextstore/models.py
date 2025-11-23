@@ -2,6 +2,7 @@
 Data models for context storage.
 """
 
+import copy
 import uuid
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
@@ -35,11 +36,13 @@ class Interaction:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Interaction':
         """Create interaction from dictionary."""
+        # Create a deep copy to avoid mutating the input dictionary and nested structures
+        data_copy = copy.deepcopy(data)
         # Ensure UUID is present, generate if missing
-        if 'id' not in data:
-            data['id'] = str(uuid.uuid4())
+        if 'id' not in data_copy:
+            data_copy['id'] = str(uuid.uuid4())
         # Ensure timestamp is present, generate if missing
-        if 'timestamp' not in data:
-            data['timestamp'] = datetime.now(timezone.utc).isoformat()
-        return cls(**data)
+        if 'timestamp' not in data_copy:
+            data_copy['timestamp'] = datetime.now(timezone.utc).isoformat()
+        return cls(**data_copy)
 

@@ -69,11 +69,12 @@ class InMemoryMemory(MemoryBackend):
         Raises:
             ValueError: If the session does not exist
         """
+        # Check if session exists (distinguish from empty session)
+        if session_id not in self._store:
+            raise ValueError(f"Session '{session_id}' does not exist. Use save_context to create a new session.")
+        
         # Load existing context
         existing_context = self.load_context(session_id)
-        
-        if not existing_context:
-            raise ValueError(f"Session '{session_id}' does not exist. Use save_context to create a new session.")
         
         # Convert new context items to Interaction models, ensuring each has a UUID
         new_interactions = []
@@ -219,11 +220,19 @@ class SQLiteMemory(MemoryBackend):
         Raises:
             ValueError: If the session does not exist
         """
+        conn = self._connect()
+        cursor = conn.cursor()
+        
+        # Check if session exists (distinguish from empty session)
+        cursor.execute("SELECT id FROM tb_context WHERE session_id = ?", (session_id,))
+        existing = cursor.fetchone()
+        conn.close()
+        
+        if not existing:
+            raise ValueError(f"Session '{session_id}' does not exist. Use save_context to create a new session.")
+        
         # Load existing context
         existing_context = self.load_context(session_id)
-        
-        if not existing_context:
-            raise ValueError(f"Session '{session_id}' does not exist. Use save_context to create a new session.")
         
         # Convert new context items to Interaction models, ensuring each has a UUID
         new_interactions = []
