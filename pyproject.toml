@@ -9,6 +9,9 @@ description = "A generic package for persisting conversation history across diff
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
+dependencies = [
+    "aiosqlite>=0.19.0",
+]
 authors = [
     {name = "Your Name", email = "your.email@example.com"}
 ]

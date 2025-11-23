@@ -10,7 +10,7 @@ class MemoryBackend(ABC):
     """Abstract base class for conversation history storage backends."""
     
     @abstractmethod
-    def load_context(self, session_id: str, k: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def load_context(self, session_id: str, k: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Load context for a session.
         
@@ -24,7 +24,7 @@ class MemoryBackend(ABC):
         pass
     
     @abstractmethod
-    def save_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+    async def save_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
         """
         Save context for a new session. Creates a new session and replaces any existing context.
         
@@ -35,7 +35,7 @@ class MemoryBackend(ABC):
         pass
     
     @abstractmethod
-    def append_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+    async def append_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
         """
         Append new context to an existing session.
         
@@ -45,6 +45,33 @@ class MemoryBackend(ABC):
         
         Raises:
             ValueError: If the session does not exist
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_session(self, session_id: str) -> None:
+        """
+        Delete a full session.
+        
+        Args:
+            session_id: Unique identifier for the conversation session
+        
+        Raises:
+            ValueError: If the session does not exist
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_interaction(self, session_id: str, interaction_id: str) -> None:
+        """
+        Delete a particular interaction and all interactions after it.
+        
+        Args:
+            session_id: Unique identifier for the conversation session
+            interaction_id: Unique identifier for the interaction to delete
+        
+        Raises:
+            ValueError: If the session or interaction does not exist
         """
         pass
 
