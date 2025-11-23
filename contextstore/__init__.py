@@ -6,8 +6,8 @@ across different storage mechanisms.
 """
 
 from .interfaces import MemoryBackend
-from .memory_backends import InMemoryMemory, SQLiteMemory
+from .memory_backends import InMemoryMemory, SQLiteMemory, Interaction
 
 __version__ = "0.1.0"
-__all__ = ["MemoryBackend", "InMemoryMemory", "SQLiteMemory"]
+__all__ = ["MemoryBackend", "InMemoryMemory", "SQLiteMemory", "Interaction"]
 
