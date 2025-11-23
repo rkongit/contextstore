@@ -20,13 +20,13 @@ class InMemoryMemory(MemoryBackend):
         """Initialize in-memory storage."""
         self._store: Dict[str, List[Dict[str, Any]]] = {}
     
-    def load_history(self, session_id: str) -> List[Dict[str, Any]]:
-        """Load conversation history for a session."""
+    def load_context(self, session_id: str) -> List[Dict[str, Any]]:
+        """Load context for a session."""
         return self._store.get(session_id, [])
     
-    def save_history(self, session_id: str, history: List[Dict[str, Any]]) -> None:
-        """Save conversation history for a session."""
-        self._store[session_id] = history
+    def save_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+        """Save context for a session."""
+        self._store[session_id] = context
 
 
 class SQLiteMemory(MemoryBackend):
@@ -52,10 +52,10 @@ class SQLiteMemory(MemoryBackend):
         
         # Create conversation_history table with exact schema from requirements
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS conversation_history (
+        CREATE TABLE IF NOT EXISTS tb_context (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT,
-            history_json TEXT,
+            context_json TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -68,13 +68,13 @@ class SQLiteMemory(MemoryBackend):
         """Get database connection."""
         return sqlite3.connect(self.db_path)
     
-    def load_history(self, session_id: str) -> List[Dict[str, Any]]:
-        """Load conversation history for a session."""
+    def load_context(self, session_id: str) -> List[Dict[str, Any]]:
+        """Load context for a session."""
         conn = self._connect()
         cursor = conn.cursor()
         
         cursor.execute(
-            "SELECT history_json FROM conversation_history WHERE session_id = ?", 
+            "SELECT context_json FROM tb_context WHERE session_id = ?", 
             (session_id,)
         )
         row = cursor.fetchone()
@@ -89,14 +89,14 @@ class SQLiteMemory(MemoryBackend):
                 return []
         return []
     
-    def save_history(self, session_id: str, history: List[Dict[str, Any]]) -> None:
-        """Save conversation history for a session."""
-        json_data = json.dumps(history, indent=2)
+    def save_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+        """Save context for a session."""
+        json_data = json.dumps(context, indent=2)
         conn = self._connect()
         cursor = conn.cursor()
         
         # Check if session already exists
-        cursor.execute("SELECT id FROM conversation_history WHERE session_id = ?", (session_id,))
+        cursor.execute("SELECT id FROM tb_context WHERE session_id = ?", (session_id,))
         existing = cursor.fetchone()
         
         now = datetime.now(timezone.utc).isoformat()
@@ -104,13 +104,13 @@ class SQLiteMemory(MemoryBackend):
         if existing:
             # Update existing session
             cursor.execute(
-                "UPDATE conversation_history SET history_json = ?, updated_at = ? WHERE session_id = ?",
+                "UPDATE tb_context SET context_json = ?, updated_at = ? WHERE session_id = ?",
                 (json_data, now, session_id)
             )
         else:
             # Insert new session
             cursor.execute(
-                "INSERT INTO conversation_history (session_id, history_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                "INSERT INTO tb_context (session_id, context_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
                 (session_id, json_data, now, now)
             )
         
