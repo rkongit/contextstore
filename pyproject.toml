@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "contextstore"
-version = "0.1.0"
-description = "A generic package for persisting conversation history across different storage backends"
+version = "0.3.0"
+description = "Token-aware context memory package supporting multiple storage backends for LLM integrations and general context storage."
 readme = "README.md"
 requires-python = ">=3.8"
 license = {text = "MIT"}
@@ -30,10 +30,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/contextstore"
-Documentation = "https://github.com/yourusername/contextstore#readme"
-Repository = "https://github.com/yourusername/contextstore"
-Issues = "https://github.com/yourusername/contextstore/issues"
+Homepage = "https://github.com/rkongit/contextstore"
+Documentation = "https://github.com/rkongit/contextstore#readme"
+Repository = "https://github.com/rkongit/contextstore"
 
 [tool.setuptools]
 packages = ["contextstore"]

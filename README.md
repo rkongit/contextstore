@@ -1,14 +1,15 @@
 # ContextStore
 
-A generic Python package for persisting conversation history across different storage backends. ContextStore provides a simple, extensible interface for saving and loading conversation histories, making it easy to maintain context across sessions in chat applications, LLM integrations, and conversational AI systems.
+A persistence layer that reliably stores and retrieves LLM interaction context, with pluggable backends and both sync/async APIs.
 
 ## Features
 
-- **Multiple Backend Support**: Choose from in-memory or SQLite storage backends
-- **Simple API**: Easy-to-use interface for saving and loading conversation history
-- **Extensible**: Implement custom backends by extending the `MemoryBackend` abstract class
-- **Session Management**: Organize conversations by session ID
-- **Type Hints**: Full type annotation support for better IDE integration
+- **Pluggable Backends**: In-memory and SQLite storage, easily extensible
+- **Sync/Async APIs**: Full async support with sync wrappers
+- **Token-Aware Context**: Automatic truncation to fit model token limits
+- **Session Management**: Organize interactions by session ID
+- **Deterministic**: Same inputs always produce identical outputs
+- **Type Hints**: Full type annotation support
 
 ## Installation
 
@@ -16,180 +17,218 @@ A generic Python package for persisting conversation history across different st
 pip install contextstore
 ```
 
-
 ## Quick Start
 
-### Using In-Memory Storage
+### Async API (Recommended)
+
+```python
+import asyncio
+from contextstore import SQLiteMemory
+
+async def main():
+    memory = SQLiteMemory("chat.db")
+    
+    # Save context
+    await memory.save_context("session-1", [
+        {"role": "user", "content": "Hello!"},
+        {"role": "assistant", "content": "Hi there!"}
+    ])
+    
+    # Load context
+    history = await memory.load_context("session-1")
+    print(history)
+
+asyncio.run(main())
+```
+
+### In-Memory Storage
 
 ```python
 from contextstore import InMemoryMemory
 
-# Create an in-memory backend
 memory = InMemoryMemory()
+await memory.save_context("session-1", [{"role": "user", "content": "Hello!"}])
+history = await memory.load_context("session-1")
+```
 
-# Save conversation history
-session_id = "user-123"
-history = [
-    {"role": "user", "content": "Hello!"},
-    {"role": "assistant", "content": "Hi there! How can I help you?"}
+## Token-Aware Context Building
+
+Automatically truncate context to fit within model token limits:
+
+```python
+from contextstore import ContextBuilder
+
+builder = ContextBuilder.from_model('gpt-4')
+
+messages = [
+    {'id': '1', 'role': 'user', 'content': 'Hello!', 'timestamp': '2024-01-01T00:00:00Z'},
+    {'id': '2', 'role': 'assistant', 'content': 'Hi!', 'timestamp': '2024-01-01T00:01:00Z'},
+    # ... many more messages
 ]
-memory.save_history(session_id, history)
 
-# Load conversation history
-loaded_history = memory.load_history(session_id)
-print(loaded_history)
+result = builder.build(messages, max_tokens=4000)
+print(result.messages)       # Messages that fit
+print(result.total_tokens)   # Token count
+print(result.approximate)    # True if using fallback tokenizer
 ```
 
-### Using SQLite Storage
+### Truncation Strategies
 
 ```python
-from contextstore import SQLiteMemory
+# Drop oldest messages first (default)
+result = builder.build(messages, max_tokens=4000, strategy='truncate_oldest')
 
-# Create a SQLite backend (automatically creates table)
-memory = SQLiteMemory("conversations.db")
+# Keep only recent messages
+result = builder.build(messages, max_tokens=4000, strategy='recent_only')
 
-# Or use an existing database without creating the table
-# memory = SQLiteMemory("existing.db", create_db=False)
-
-# Save conversation history
-session_id = "user-123"
-history = [
-    {"role": "user", "content": "Hello!"},
-    {"role": "assistant", "content": "Hi there! How can I help you?"}
-]
-memory.save_history(session_id, history)
-
-# Load conversation history (persists across sessions)
-loaded_history = memory.load_history(session_id)
-print(loaded_history)
+# Summarize oldest messages
+result = builder.build(
+    messages,
+    max_tokens=4000,
+    strategy='summarize_oldest',
+    strategy_opts={'summarizer': lambda msgs: "Summary: ...", 'chunk_size': 5},
+)
 ```
 
-## Usage Examples
-
-### Basic Conversation Management
+### Tokenizer Options
 
 ```python
-from contextstore import SQLiteMemory
+from contextstore import tokenizer_from_name
 
-# Initialize the backend
-memory = SQLiteMemory("chat_history.db")
+# Model-specific (requires tiktoken)
+tokenizer = tokenizer_from_name('gpt-4')
 
-# Start a new conversation
-session_id = "session-001"
-conversation = []
-
-# Add messages to the conversation
-conversation.append({"role": "user", "content": "What is Python?"})
-conversation.append({"role": "assistant", "content": "Python is a programming language."})
-
-# Save the conversation
-memory.save_history(session_id, conversation)
-
-# Later, retrieve the conversation
-retrieved = memory.load_history(session_id)
-print(retrieved)
+# Explicit fallback (no dependencies)
+tokenizer = tokenizer_from_name('fallback')
 ```
 
-### Integrating with Chat Applications
+## Full Example with OpenAI
 
 ```python
-from contextstore import SQLiteMemory
+from uuid import uuid4
+from datetime import datetime
+from openai import OpenAI
+from contextstore import ContextBuilder, SQLiteMemory
 
-class ChatBot:
-    def __init__(self, db_path: str):
-        self.memory = SQLiteMemory(db_path)
+client = OpenAI()
+memory = SQLiteMemory("chat.db")
+builder = ContextBuilder.from_model('gpt-4')
+
+async def chat(session_id: str, user_message: str):
+    # Load existing context
+    history = await memory.load_context(session_id)
     
-    def chat(self, session_id: str, user_message: str):
-        # Load existing history
-        history = self.memory.load_history(session_id)
-        
-        # Add user message
-        history.append({"role": "user", "content": user_message})
-        
-        # Generate response (your LLM logic here)
-        response = self.generate_response(history)
-        
-        # Add assistant response
-        history.append({"role": "assistant", "content": response})
-        
-        # Save updated history
-        self.memory.save_history(session_id, history)
-        
-        return response
+    # Add new message
+    history.append({
+        'id': str(uuid4()),
+        'role': 'user',
+        'content': user_message,
+        'timestamp': datetime.now().isoformat(),
+    })
     
-    def generate_response(self, history):
-        # Your LLM integration here
-        return "This is a placeholder response"
+    # Truncate to fit token limit
+    result = builder.build(history, max_tokens=4000)
+    
+    # Call OpenAI
+    response = client.chat.completions.create(
+        model='gpt-4',
+        messages=[{'role': m['role'], 'content': m['content']} for m in result.messages],
+    )
+    
+    # Save updated context
+    assistant_msg = {
+        'id': str(uuid4()),
+        'role': 'assistant',
+        'content': response.choices[0].message.content,
+        'timestamp': datetime.now().isoformat(),
+    }
+    history.append(assistant_msg)
+    await memory.save_context(session_id, history)
+    
+    return assistant_msg['content']
 ```
 
-## Creating Custom Backends
+## Custom Backends
 
-You can create custom storage backends by extending the `MemoryBackend` abstract class:
+Extend `MemoryBackend` to create custom storage:
 
 ```python
 from contextstore import MemoryBackend
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
-class CustomBackend(MemoryBackend):
-    def load_history(self, session_id: str) -> List[Dict[str, Any]]:
-        # Your custom load logic
+class RedisBackend(MemoryBackend):
+    async def load_context(self, session_id: str, k: Optional[int] = None) -> List[Dict[str, Any]]:
+        # Your Redis load logic
         pass
     
-    def save_history(self, session_id: str, history: List[Dict[str, Any]]) -> None:
-        # Your custom save logic
+    async def save_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+        # Your Redis save logic
+        pass
+    
+    async def append_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+        # Your Redis append logic
+        pass
+    
+    async def delete_session(self, session_id: str) -> None:
+        # Your Redis delete logic
+        pass
+    
+    async def delete_interaction(self, session_id: str, interaction_id: str) -> None:
+        # Your Redis delete interaction logic
         pass
 ```
 
 ## API Reference
 
-### MemoryBackend
+### MemoryBackend Methods
 
-Abstract base class for all memory backends.
+| Method | Description |
+|--------|-------------|
+| `load_context(session_id, k=None)` | Load context (optionally last k interactions) |
+| `save_context(session_id, context)` | Save/replace context |
+| `append_context(session_id, context)` | Append to existing context |
+| `delete_session(session_id)` | Delete entire session |
+| `delete_interaction(session_id, interaction_id)` | Delete specific interaction |
 
-#### Methods
-
-- `load_history(session_id: str) -> List[Dict[str, Any]]`
-  - Load conversation history for a given session ID
-  - Returns an empty list if no history exists
-
-- `save_history(session_id: str, history: List[Dict[str, Any]]) -> None`
-  - Save conversation history for a given session ID
-  - Overwrites existing history for the same session ID
-
-### InMemoryMemory
-
-In-memory storage backend. Data is lost when the process ends.
-
-#### Constructor
+### ContextBuilder
 
 ```python
-InMemoryMemory()
+ContextBuilder(tokenizer=None, default_strategy='truncate_oldest')
+ContextBuilder.from_model(model_name)  # Factory method
+
+builder.build(
+    messages,           # List of message dicts
+    max_tokens,         # Token budget
+    strategy=None,      # See strategies below
+    strategy_opts=None, # Strategy-specific options
+    pre_filter=None,    # Filter before processing
+    post_filter=None,   # Filter after truncation
+) -> BuildResult
 ```
 
-### SQLiteMemory
+### BuildResult
 
-SQLite-based persistent storage backend.
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `messages` | `List[Dict]` | Messages within budget |
+| `total_tokens` | `int` | Token count |
+| `approximate` | `bool` | True if using fallback tokenizer |
+| `strategy_used` | `str` | Strategy applied |
+| `metadata` | `Dict` | Additional info (dropped_ids, etc.) |
 
-#### Constructor
+### Truncation Strategies
 
-```python
-SQLiteMemory(db_path: str, create_db: bool = True)
-```
-
-**Parameters:**
-- `db_path`: Path to the SQLite database file (will be created if it doesn't exist)
-- `create_db`: If `True` (default), automatically create the database table if it doesn't exist. If `False`, skip table creation (assumes table already exists).
+| Strategy | Description |
+|----------|-------------|
+| `truncate_oldest` | Drop oldest messages until under budget (default) |
+| `recent_only` | Keep only recent messages that fit within budget |
+| `summarize_oldest` | Summarize oldest messages via user-provided callback |
 
 ## Requirements
 
-- Python 3.8 or higher
-- No external dependencies (uses only standard library)
+- Python 3.8+
+- **Optional**: `tiktoken` for accurate token counting
 
 ## License
 
 MIT License
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
