@@ -8,6 +8,8 @@ A persistence layer that reliably stores and retrieves LLM interaction context, 
 - **Sync/Async APIs**: Full async support with sync wrappers
 - **Token-Aware Context**: Automatic truncation to fit model token limits
 - **Session Management**: Organize interactions by session ID
+- **Semantic Retrieval**: Embedding-based search over conversation history
+- **Unified SessionStore**: Integrated memory + retrieval with auto-embedding
 - **Deterministic**: Same inputs always produce identical outputs
 - **Type Hints**: Full type annotation support
 
@@ -224,10 +226,88 @@ builder.build(
 | `recent_only` | Keep only recent messages that fit within budget |
 | `summarize_oldest` | Summarize oldest messages via user-provided callback |
 
+### SessionStore
+
+```python
+SessionStore(memory, retrieval=None, config=None)
+
+# Methods
+store.load_context(session_id, k=None)
+store.save_context(session_id, context)
+store.append_context(session_id, context)
+store.retrieve_relevant(session_id, query, k=5)
+store.spawn_background_embedding(session_id, message_id, text, metadata=None)
+store.wait_for_embeddings()
+```
+
+### RetrievalBackend
+
+| Method | Description |
+|--------|-------------|
+| `add(session_id, message_id, vector, metadata)` | Add embedding vector |
+| `search(session_id, query_vector, k)` | Search for similar vectors |
+| `has_embedding(session_id, message_id)` | Check if embedding exists |
+
+## Semantic Retrieval (v0.4.0+)
+
+Retrieve relevant messages from conversation history using embeddings:
+
+```python
+from contextstore import InMemoryEmbeddingStore, retrieve_relevant
+
+# Your embedding function (sync or async)
+def embed_fn(texts: list[str]) -> list[list[float]]:
+    # Use OpenAI, sentence-transformers, etc.
+    return [[0.1, 0.2, ...] for _ in texts]
+
+store = InMemoryEmbeddingStore()
+
+# Add embeddings
+await store.add("session-1", "msg-1", embed_fn(["Hello!"])[0], {"text": "Hello!"})
+await store.add("session-1", "msg-2", embed_fn(["How are you?"])[0], {"text": "How are you?"})
+
+# Search for relevant messages
+results = await retrieve_relevant("session-1", "greeting", embed_fn, store, k=5)
+for item in results:
+    print(f"{item.message_id}: {item.score:.3f} - {item.metadata}")
+```
+
+## SessionStore - Unified Workflow
+
+`SessionStore` combines memory storage with embedding-based retrieval:
+
+```python
+from contextstore import SessionStore, SessionStoreConfig, SQLiteMemory, InMemoryEmbeddingStore
+
+memory = SQLiteMemory("chat.db")
+retrieval = InMemoryEmbeddingStore()
+
+config = SessionStoreConfig(
+    auto_embed=True,
+    embed_fn=your_embed_function,
+)
+
+store = SessionStore(memory, retrieval, config)
+
+# Save context (automatically embeds when auto_embed=True)
+await store.save_context("session-1", [
+    {"id": "1", "role": "user", "content": "What is Python?"},
+    {"id": "2", "role": "assistant", "content": "Python is a programming language."},
+])
+
+# Semantic search over history
+relevant = await store.retrieve_relevant("session-1", "programming languages", k=3)
+
+# Background embedding (non-blocking)
+store.spawn_background_embedding("session-1", "msg-3", "Some text to embed")
+await store.wait_for_embeddings()  # Wait for completion
+```
+
 ## Requirements
 
 - Python 3.8+
 - **Optional**: `tiktoken` for accurate token counting
+- **Optional**: `numpy` for embedding-based retrieval
 
 ## License
 
