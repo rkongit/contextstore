@@ -2,6 +2,7 @@
 Memory backend implementations.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -150,6 +151,7 @@ class SQLiteMemory(MemoryBackend):
         """
         self.db_path = db_path
         self._create_db = create_db
+        self._init_lock = asyncio.Lock()
     
     async def _init_db(self):
         """Initialize database and create conversation_history table."""
@@ -173,10 +175,11 @@ class SQLiteMemory(MemoryBackend):
             session_id: Unique identifier for the session
             k: Optional. The number of recent interactions to return. If None, returns all.
         """
-        # Initialize DB on first use if needed
-        if self._create_db:
-            await self._init_db()
-            self._create_db = False
+        # Initialize DB on first use if needed (with lock to prevent race conditions)
+        async with self._init_lock:
+            if self._create_db:
+                await self._init_db()
+                self._create_db = False
         
         async with aiosqlite.connect(self.db_path) as conn:
             cursor = await conn.execute(
@@ -205,10 +208,11 @@ class SQLiteMemory(MemoryBackend):
             context: List of interaction dictionaries. Each interaction will be converted
                     to an Interaction model and assigned a unique UUID if not present.
         """
-        # Initialize DB on first use if needed
-        if self._create_db:
-            await self._init_db()
-            self._create_db = False
+        # Initialize DB on first use if needed (with lock to prevent race conditions)
+        async with self._init_lock:
+            if self._create_db:
+                await self._init_db()
+                self._create_db = False
         
         # Convert context items to Interaction models, ensuring each has a UUID
         interactions = []
@@ -257,10 +261,11 @@ class SQLiteMemory(MemoryBackend):
         Raises:
             ValueError: If the session does not exist
         """
-        # Initialize DB on first use if needed
-        if self._create_db:
-            await self._init_db()
-            self._create_db = False
+        # Initialize DB on first use if needed (with lock to prevent race conditions)
+        async with self._init_lock:
+            if self._create_db:
+                await self._init_db()
+                self._create_db = False
         
         async with aiosqlite.connect(self.db_path) as conn:
             # Check if session exists (distinguish from empty session)

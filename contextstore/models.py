@@ -35,14 +35,34 @@ class Interaction:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Interaction':
-        """Create interaction from dictionary."""
+        """Create interaction from dictionary.
+        
+        Extra fields (like 'role') are preserved in the 'content' dict.
+        """
         # Create a deep copy to avoid mutating the input dictionary and nested structures
         data_copy = copy.deepcopy(data)
+        
         # Ensure UUID is present, generate if missing
         if 'id' not in data_copy:
             data_copy['id'] = str(uuid.uuid4())
         # Ensure timestamp is present, generate if missing
         if 'timestamp' not in data_copy:
             data_copy['timestamp'] = datetime.now(timezone.utc).isoformat()
-        return cls(**data_copy)
+        
+        # Separate valid fields from extra fields
+        valid_fields = {'id', 'content', 'metadata', 'timestamp'}
+        extra_fields = {k: v for k, v in data_copy.items() if k not in valid_fields}
+        
+        # Merge extra fields into content to preserve them
+        content = data_copy.get('content', {})
+        if not isinstance(content, dict):
+            content = {'data': content}
+        for key, value in extra_fields.items():
+            if key not in content:
+                content[key] = value
+        data_copy['content'] = content
+        
+        # Filter to only include valid Interaction fields
+        filtered = {k: v for k, v in data_copy.items() if k in valid_fields}
+        return cls(**filtered)
 

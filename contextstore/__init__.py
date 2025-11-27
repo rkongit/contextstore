@@ -30,7 +30,11 @@ from .truncation import (
 )
 from .context_builder import ContextBuilder
 
-__version__ = "0.3.0"
+# Retrieval (v0.4.0+)
+from .retrieval import InMemoryEmbeddingStore, RetrievalBackend, RetrievedItem, retrieve_relevant
+from .session_store import SessionStore, SessionStoreConfig
+
+__version__ = "0.4.0"
 __all__ = [
     # Memory backends
     "MemoryBackend",
@@ -53,5 +57,12 @@ __all__ = [
     # Context Builder
     "ContextBuilder",
     "BuildResult",
+    # Retrieval
+    "InMemoryEmbeddingStore",
+    "RetrievalBackend",
+    "RetrievedItem",
+    "retrieve_relevant",
+    "SessionStore",
+    "SessionStoreConfig",
 ]
 
