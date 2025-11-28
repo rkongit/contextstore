@@ -14,7 +14,7 @@ dependencies = [
     "numpy>=1.20.0",
 ]
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Adarsh R K", email = "adarshrk111@gmail.com"}
 ]
 keywords = ["conversation", "history", "memory", "persistence", "chat", "llm"]
 classifiers = [
