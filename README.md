@@ -5,7 +5,7 @@ A persistence layer that reliably stores and retrieves LLM interaction context, 
 ## Features
 
 - **Pluggable Backends**: In-memory and SQLite storage, easily extensible
-- **Sync/Async APIs**: Full async support with sync wrappers
+- **Async API**: Full async support (embedding functions can be sync or async)
 - **Token-Aware Context**: Automatic truncation to fit model token limits
 - **Session Management**: Organize interactions by session ID
 - **Semantic Retrieval**: Embedding-based search over conversation history
@@ -46,11 +46,16 @@ asyncio.run(main())
 ### In-Memory Storage
 
 ```python
+import asyncio
 from contextstore import InMemoryMemory
 
-memory = InMemoryMemory()
-await memory.save_context("session-1", [{"role": "user", "content": "Hello!"}])
-history = await memory.load_context("session-1")
+async def main():
+    memory = InMemoryMemory()
+    await memory.save_context("session-1", [{"role": "user", "content": "Hello!"}])
+    history = await memory.load_context("session-1")
+    print(history)
+
+asyncio.run(main())
 ```
 
 ## Token-Aware Context Building
@@ -186,11 +191,11 @@ class RedisBackend(MemoryBackend):
 
 | Method | Description |
 |--------|-------------|
-| `load_context(session_id, k=None)` | Load context (optionally last k interactions) |
-| `save_context(session_id, context)` | Save/replace context |
-| `append_context(session_id, context)` | Append to existing context |
-| `delete_session(session_id)` | Delete entire session |
-| `delete_interaction(session_id, interaction_id)` | Delete specific interaction |
+| `load_context(session_id, k=None)` | Load context for a session. If `k` is provided, returns the number of recent interactions; if `None`, returns all. |
+| `save_context(session_id, context)` | Save context for a session. Creates a new session and replaces any existing context. |
+| `append_context(session_id, context)` | Append new context to an existing session. Raises `ValueError` if the session does not exist. |
+| `delete_session(session_id)` | Delete a full session. Raises `ValueError` if the session does not exist. |
+| `delete_interaction(session_id, interaction_id)` | Delete a particular interaction and all interactions after it. Raises `ValueError` if the session or interaction does not exist. |
 
 ### ContextBuilder
 
@@ -235,8 +240,11 @@ SessionStore(memory, retrieval=None, config=None)
 store.load_context(session_id, k=None)
 store.save_context(session_id, context)
 store.append_context(session_id, context)
-store.retrieve_relevant(session_id, query, k=5)
+store.delete_session(session_id)
+store.delete_interaction(session_id, interaction_id)
+store.add_message_embedding(session_id, message_id, text, metadata=None)
 store.spawn_background_embedding(session_id, message_id, text, metadata=None)
+store.retrieve_relevant(session_id, query, k=5)
 store.wait_for_embeddings()
 ```
 
