@@ -250,26 +250,79 @@ store.wait_for_embeddings()
 
 ## Semantic Retrieval (v0.4.0+)
 
-Retrieve relevant messages from conversation history using embeddings:
+Retrieve relevant messages from conversation history using embeddings.
+
+**Important**: You need a real embedding function that produces different vectors for different text. Using identical vectors (e.g., `[0.1] * 768`) will not work correctly.
+
+### Embedding Function Options
+
+**Option 1: Using sentence-transformers (Recommended for local)**
+```python
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+def embed_fn(texts: list[str]) -> list[list[float]]:
+    return model.encode(texts).tolist()
+```
+
+**Option 2: Using OpenAI**
+```python
+from openai import OpenAI
+
+client = OpenAI()
+
+def embed_fn(texts: list[str]) -> list[list[float]]:
+    response = client.embeddings.create(
+        input=texts,
+        model="text-embedding-3-small"
+    )
+    return [e.embedding for e in response.data]
+```
+
+**Option 3: Hash-based mock (For testing only)**
+```python
+import hashlib
+
+def embed_fn(texts: list[str]) -> list[list[float]]:
+    vectors = []
+    for text in texts:
+        h = hashlib.sha256(text.lower().encode()).digest()
+        vec = [b / 255.0 for b in h]  # 32-dim vector
+        vectors.append(vec + [0.0] * (768 - 32))  # Pad to 768
+    return vectors
+```
+
+### Usage Example
 
 ```python
+import asyncio
 from contextstore import InMemoryEmbeddingStore, retrieve_relevant
 
-# Your embedding function (sync or async)
+# Use one of the embedding functions above
 def embed_fn(texts: list[str]) -> list[list[float]]:
-    # Use OpenAI, sentence-transformers, etc.
-    return [[0.1, 0.2, ...] for _ in texts]
+    # Replace with real embedding function
+    import hashlib
+    vectors = []
+    for text in texts:
+        h = hashlib.sha256(text.lower().encode()).digest()
+        vec = [b / 255.0 for b in h]
+        vectors.append(vec + [0.0] * (768 - 32))
+    return vectors
 
-store = InMemoryEmbeddingStore()
+async def main():
+    store = InMemoryEmbeddingStore()
+    
+    # Add embeddings
+    await store.add("session-1", "msg-1", embed_fn(["Hello!"])[0], {"text": "Hello!"})
+    await store.add("session-1", "msg-2", embed_fn(["How are you?"])[0], {"text": "How are you?"})
+    
+    # Search for relevant messages
+    results = await retrieve_relevant("session-1", "greeting", embed_fn, store, k=5)
+    for item in results:
+        print(f"{item.message_id}: {item.score:.3f} - {item.metadata.get('text')}")
 
-# Add embeddings
-await store.add("session-1", "msg-1", embed_fn(["Hello!"])[0], {"text": "Hello!"})
-await store.add("session-1", "msg-2", embed_fn(["How are you?"])[0], {"text": "How are you?"})
-
-# Search for relevant messages
-results = await retrieve_relevant("session-1", "greeting", embed_fn, store, k=5)
-for item in results:
-    print(f"{item.message_id}: {item.score:.3f} - {item.metadata}")
+asyncio.run(main())
 ```
 
 ## SessionStore - Unified Workflow
@@ -277,30 +330,45 @@ for item in results:
 `SessionStore` combines memory storage with embedding-based retrieval:
 
 ```python
+import asyncio
 from contextstore import SessionStore, SessionStoreConfig, SQLiteMemory, InMemoryEmbeddingStore
 
-memory = SQLiteMemory("chat.db")
-retrieval = InMemoryEmbeddingStore()
+# Setup embedding function (use one from Semantic Retrieval section above)
+from sentence_transformers import SentenceTransformer
+model = SentenceTransformer('all-MiniLM-L6-v2')
 
-config = SessionStoreConfig(
-    auto_embed=True,
-    embed_fn=your_embed_function,
-)
+def embed_fn(texts: list[str]) -> list[list[float]]:
+    return model.encode(texts).tolist()
 
-store = SessionStore(memory, retrieval, config)
+async def main():
+    memory = SQLiteMemory("chat.db")
+    retrieval = InMemoryEmbeddingStore()
+    
+    config = SessionStoreConfig(
+        auto_embed=True,
+        embed_fn=embed_fn,
+    )
+    
+    store = SessionStore(memory, retrieval, config)
+    
+    # Save context (automatically embeds when auto_embed=True)
+    await store.save_context("session-1", [
+        {"id": "1", "role": "user", "content": "What is Python?"},
+        {"id": "2", "role": "assistant", "content": "Python is a programming language."},
+        {"id": "3", "role": "user", "content": "What is the capital of France?"},
+        {"id": "4", "role": "assistant", "content": "Paris."},
+    ])
+    
+    # Semantic search over history
+    relevant = await store.retrieve_relevant("session-1", "programming languages", k=3)
+    for item in relevant:
+        print(f"{item.message_id}: {item.score:.3f} - {item.metadata.get('text')}")
+    
+    # Background embedding (non-blocking)
+    store.spawn_background_embedding("session-1", "msg-5", "Some text to embed")
+    await store.wait_for_embeddings()  # Wait for completion
 
-# Save context (automatically embeds when auto_embed=True)
-await store.save_context("session-1", [
-    {"id": "1", "role": "user", "content": "What is Python?"},
-    {"id": "2", "role": "assistant", "content": "Python is a programming language."},
-])
-
-# Semantic search over history
-relevant = await store.retrieve_relevant("session-1", "programming languages", k=3)
-
-# Background embedding (non-blocking)
-store.spawn_background_embedding("session-1", "msg-3", "Some text to embed")
-await store.wait_for_embeddings()  # Wait for completion
+asyncio.run(main())
 ```
 
 ## Requirements
@@ -308,6 +376,7 @@ await store.wait_for_embeddings()  # Wait for completion
 - Python 3.8+
 - **Optional**: `tiktoken` for accurate token counting
 - **Optional**: `numpy` for embedding-based retrieval
+- **Optional**: `sentence-transformers` or `openai` for semantic retrieval embeddings
 
 ## License
 
