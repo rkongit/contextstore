@@ -2,12 +2,67 @@
 ContextStore - A generic package for persisting conversation history.
 
 This package provides backends for storing and retrieving conversation history
-across different storage mechanisms.
+across different storage mechanisms, with token-aware context management.
 """
 
 from .interfaces import MemoryBackend
 from .memory_backends import InMemoryMemory, SQLiteMemory
+from .models import Interaction
 
-__version__ = "0.1.0"
-__all__ = ["MemoryBackend", "InMemoryMemory", "SQLiteMemory"]
+# Token-aware context management (v0.3.0+)
+from .tokenizer_interfaces import (
+    Tokenizer,
+    TokenCountResult,
+    TruncationStrategy,
+    TruncationResult,
+    BuildResult,
+)
+from .tokenizer import (
+    FallbackWordCountTokenizer,
+    ModelTokenizer,
+    tokenizer_from_name,
+)
+from .truncation import (
+    TruncateOldestStrategy,
+    RecentOnlyStrategy,
+    SummarizeOldestStrategy,
+    get_strategy,
+)
+from .context_builder import ContextBuilder
+
+# Retrieval (v0.4.0+)
+from .retrieval import InMemoryEmbeddingStore, RetrievalBackend, RetrievedItem, retrieve_relevant
+from .session_store import SessionStore, SessionStoreConfig
+
+__version__ = "0.4.0"
+__all__ = [
+    # Memory backends
+    "MemoryBackend",
+    "InMemoryMemory",
+    "SQLiteMemory",
+    "Interaction",
+    # Tokenizer
+    "Tokenizer",
+    "TokenCountResult",
+    "FallbackWordCountTokenizer",
+    "ModelTokenizer",
+    "tokenizer_from_name",
+    # Truncation
+    "TruncationStrategy",
+    "TruncationResult",
+    "TruncateOldestStrategy",
+    "RecentOnlyStrategy",
+    "SummarizeOldestStrategy",
+    "get_strategy",
+    # Context Builder
+    "ContextBuilder",
+    "BuildResult",
+    # Retrieval
+    "InMemoryEmbeddingStore",
+    "RetrievalBackend",
+    "RetrievedItem",
+    "retrieve_relevant",
+    "SessionStore",
+    "SessionStoreConfig",
+]
 

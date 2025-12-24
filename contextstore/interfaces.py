@@ -3,19 +3,20 @@ Abstract interface for memory backends.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 class MemoryBackend(ABC):
     """Abstract base class for conversation history storage backends."""
     
     @abstractmethod
-    def load_history(self, session_id: str) -> List[Dict[str, Any]]:
+    async def load_context(self, session_id: str, k: Optional[int] = None) -> List[Dict[str, Any]]:
         """
-        Load conversation history for a session.
+        Load context for a session.
         
         Args:
             session_id: Unique identifier for the conversation session
+            k: Optional. The number of recent interactions to return. If None, returns all.
             
         Returns:
             List of conversation messages, each as a dictionary
@@ -23,13 +24,54 @@ class MemoryBackend(ABC):
         pass
     
     @abstractmethod
-    def save_history(self, session_id: str, history: List[Dict[str, Any]]) -> None:
+    async def save_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
         """
-        Save conversation history for a session.
+        Save context for a new session. Creates a new session and replaces any existing context.
         
         Args:
             session_id: Unique identifier for the conversation session
-            history: List of conversation messages to save
+            context: List of conversation messages to save
+        """
+        pass
+    
+    @abstractmethod
+    async def append_context(self, session_id: str, context: List[Dict[str, Any]]) -> None:
+        """
+        Append new context to an existing session.
+        
+        Args:
+            session_id: Unique identifier for the conversation session
+            context: List of conversation messages to append
+        
+        Raises:
+            ValueError: If the session does not exist
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_session(self, session_id: str) -> None:
+        """
+        Delete a full session.
+        
+        Args:
+            session_id: Unique identifier for the conversation session
+        
+        Raises:
+            ValueError: If the session does not exist
+        """
+        pass
+    
+    @abstractmethod
+    async def delete_interaction(self, session_id: str, interaction_id: str) -> None:
+        """
+        Delete a particular interaction and all interactions after it.
+        
+        Args:
+            session_id: Unique identifier for the conversation session
+            interaction_id: Unique identifier for the interaction to delete
+        
+        Raises:
+            ValueError: If the session or interaction does not exist
         """
         pass
 
